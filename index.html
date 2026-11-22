@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Саратов на Волне — фестивали и события города</title>
+<link rel="stylesheet" href="lib/maplibre-gl.css">
+<style>
+:root {
+  --accent: #1f5f8b;
+  --ink: #1d2733;
+  --muted: #6b7785;
+  --line: #e3e8ee;
+  --bg: #f6f8fa;
+  --radius: 12px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; font-family: system-ui, "Segoe UI", Roboto, Arial, sans-serif; color: var(--ink); background: var(--bg); }
+.app { display: grid; grid-template-rows: auto 1fr; grid-template-columns: 360px 1fr; height: 100vh; }
+header { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 12px 20px; background: #fff; border-bottom: 1px solid var(--line); z-index: 1000; }
+.brand { font-size: 20px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.brand small { display: block; font-size: 12px; font-weight: 500; color: var(--muted); }
+.dates { display: flex; align-items: end; gap: 8px; flex-wrap: wrap; }
+.dates label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 2px; }
+.dates input { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); }
+.btn { font: inherit; font-size: 13px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); cursor: pointer; }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; text-decoration: none; display: inline-block; }
+.btn.primary:hover { filter: brightness(1.1); color: #fff; }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; cursor: pointer; user-select: none; }
+.chip i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.chip b { font-weight: 600; color: var(--muted); }
+.chip.off { opacity: .45; }
+aside { overflow-y: auto; background: #fff; border-right: 1px solid var(--line); }
+.list-head { position: sticky; top: 0; background: #fff; padding: 14px 16px 10px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--line); z-index: 1; }
+.list-head strong { color: var(--ink); font-size: 15px; display: block; }
+.item { display: grid; grid-template-columns: 72px 1fr; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.item:hover, .item.active { background: #eef4f9; }
+.item img, .item .noimg { width: 72px; height: 54px; object-fit: cover; border-radius: 8px; background: var(--line); }
+.item h3 { margin: 0 0 4px; font-size: 14px; line-height: 1.3; }
+.meta { font-size: 12px; color: var(--muted); line-height: 1.45; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; margin-right: 6px; vertical-align: 1px; }
+.empty { padding: 32px 20px; text-align: center; color: var(--muted); font-size: 14px; line-height: 1.5; }
+#map { position: relative; background: #e9eef2; }
+.pin { width: 30px; height: 34px; cursor: pointer; }
+.pin span { position: absolute; left: 3px; top: 0; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: var(--c); border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); transition: transform .15s; }
+.pin.active span { transform: rotate(-45deg) scale(1.3); }
+.pin.active { z-index: 10; }
+.tip .maplibregl-popup-content { padding: 0; border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.2); width: 280px; overflow: hidden; }
+.tip.maplibregl-popup { max-width: 280px !important; z-index: 20; }
+.tip img { width: 100%; height: 140px; object-fit: cover; display: block; }
+.tip-body { padding: 10px 12px 12px; font-size: 13px; line-height: 1.4; }
+.tip-body h4 { margin: 4px 0; font-size: 15px; }
+.route { margin-top: 8px; padding: 8px 10px; background: var(--bg); border-radius: 8px; }
+.route span { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); font-weight: 700; margin-bottom: 2px; }
+.panel { position: fixed; top: 0; right: 0; width: 400px; max-width: 100vw; height: 100vh; background: #fff; box-shadow: -8px 0 24px rgba(0,0,0,.15); z-index: 2000; transform: translateX(105%); transition: transform .25s; overflow-y: auto; }
+.panel.open { transform: none; }
+.panel .close { position: absolute; top: 12px; right: 12px; width: 36px; height: 36px; border-radius: 50%; border: none; background: rgba(255,255,255,.9); font-size: 22px; cursor: pointer; z-index: 1; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+.gallery-main { width: 100%; height: auto; max-height: 340px; object-fit: contain; display: block; background: #1d2733; }
+.thumbs { display: flex; gap: 6px; padding: 8px 20px 0; }
+.thumbs img { width: 64px; height: 48px; object-fit: cover; border-radius: 6px; cursor: pointer; opacity: .6; }
+.thumbs img.sel { opacity: 1; outline: 2px solid var(--accent); }
+.panel-body { padding: 16px 20px 28px; }
+.panel-body h2 { margin: 6px 0 12px; font-size: 21px; line-height: 1.25; }
+.facts { display: grid; grid-template-columns: 22px 1fr; gap: 8px 6px; font-size: 14px; margin-bottom: 14px; }
+.desc { font-size: 14px; line-height: 1.55; margin: 0 0 14px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.notice { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); z-index: 1500; background: #fff4e5; color: #7a4b00; border: 1px solid #f3c98b; border-radius: 10px; padding: 10px 14px; font-size: 13px; max-width: 90%; box-shadow: 0 4px 12px rgba(0,0,0,.1); }
+.notice:empty { display: none; }
+.fatal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); z-index: 5000; padding: 24px; text-align: center; font-size: 16px; line-height: 1.6; }
+.warn { font-size: 12px; color: #a15c00; padding: 8px 16px; background: #fff8ec; border-bottom: 1px solid var(--line); }
+@media (max-width: 800px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: auto 55vh auto; height: auto; }
+  aside { border-right: none; overflow: visible; }
+  #map { grid-row: 2; }
+  .panel { width: 100vw; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">Саратов на Волне<small>фестивали и события города</small></div>
+    <div class="dates">
+      <label>Приезд<input type="date" id="from"></label>
+      <label>Отъезд<input type="date" id="to"></label>
+      <button class="btn" id="week">7 дней</button>
+      <button class="btn" id="weekend">Выходные</button>
+      <button class="btn" id="all">Все</button>
+    </div>
+    <div class="chips" id="chips"></div>
+  </header>
+  <aside id="list"></aside>
+  <div id="map"><div class="notice" id="notice"></div></div>
+</div>
+<div class="panel" id="panel"></div>
+
+<script src="lib/maplibre-gl.js"></script>
+<script src="lib/pmtiles.js"></script>
+<script src="lib/basemaps.js"></script>
+<script src="lib/xlsx.full.min.js"></script>
+<script>
+const CATEGORIES = {
+  "фестиваль": { color: "#d6453f", title: "Фестивали" },
+  "выставка": { color: "#3f66bf", title: "Выставки" },
+  "экскурсия": { color: "#2e8b57", title: "Экскурсии" },
+  "природа": { color: "#c9871e", title: "Природа" },
+  "другое": { color: "#7a8490", title: "Другое" }
+};
+const BOUNDS = [[45.75, 51.10], [46.25, 51.72]];
+const CENTER = [46.034, 51.533];
+const PHOTO_DIR = "data/photos/";
+
+const state = { events: [], from: null, to: null, off: new Set(), markers: new Map(), current: null };
+const hoverCapable = window.matchMedia("(hover: hover)").matches;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pad = n => String(n).padStart(2, "0");
+const iso = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
+const dateToIso = d => iso(d.getFullYear(), d.getMonth() + 1, d.getDate());
+const isoToDate = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = isoToDate(s); d.setDate(d.getDate() + n); return dateToIso(d); };
+const today = () => dateToIso(new Date());
+
+function fatal(msg) {
+  const el = document.createElement("div");
+  el.className = "fatal";
+  el.innerHTML = msg;
+  document.body.appendChild(el);
+}
+
+function parseDate(v) {
+  if (v === "" || v == null) return null;
+  if (typeof v === "number") {
+    const d = XLSX.SSF.parse_date_code(v);
+    return d ? iso(d.y, d.m, d.d) : null;
+  }
+  if (v instanceof Date) return dateToIso(v);
+  const s = String(v).trim();
+  let m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (m) return iso(+m[3], +m[2], +m[1]);
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? iso(+m[1], +m[2], +m[3]) : null;
+}
+
+const parseNum = v => typeof v === "number" ? v : parseFloat(String(v).replace(",", ".").trim());
+
+function parseCoords(row) {
+  let a, b;
+  const raw = String(row["координаты"] ?? "").replace(/%2C/gi, ",").trim();
+  if (raw) {
+    const nums = raw.match(/-?\d+(?:[.,]\d+)?/g) || [];
+    if (nums.length < 2) return [NaN, NaN];
+    if (nums.length === 4 && !raw.includes(";")) { a = nums[0] + "." + nums[1]; b = nums[2] + "." + nums[3]; }
+    else { a = nums[0]; b = nums[1]; }
+  } else {
+    a = row["широта"];
+    b = row["долгота"];
+  }
+  let lat = parseNum(a), lon = parseNum(b);
+  if (Math.abs(lat - 51.53) > Math.abs(lon - 51.53)) [lat, lon] = [lon, lat];
+  return [lat, lon];
+}
+
+function fmtDate(s) {
+  const d = isoToDate(s);
+  const opts = { day: "numeric", month: "long" };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = "numeric";
+  return d.toLocaleDateString("ru-RU", opts);
+}
+const fmtRange = e => e.start === e.end ? fmtDate(e.start) : `${fmtDate(e.start)} — ${fmtDate(e.end)}`;
+
+async function loadEvents() {
+  const res = await fetch("data/events.xlsx", { cache: "no-store" });
+  if (!res.ok) throw new Error("Не найден файл data/events.xlsx");
+  const wb = XLSX.read(new Uint8Array(await res.arrayBuffer()), { type: "array" });
+  const ws = wb.Sheets["События"] || wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: "" });
+  const skipped = [];
+  const events = [];
+  rows.forEach((raw, i) => {
+    const row = {};
+    for (const k in raw) row[k.trim().toLowerCase()] = typeof raw[k] === "string" ? raw[k].trim() : raw[k];
+    const line = i + 2;
+    if (!row["id"] && !row["название"]) return;
+    const start = parseDate(row["дата_начала"]);
+    const end = parseDate(row["дата_окончания"]) || start;
+    const [lat, lon] = parseCoords(row);
+    const problems = [];
+    if (!row["название"]) problems.push("нет названия");
+    if (!start) problems.push("неверная дата_начала");
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) problems.push("нет координат");
+    if (problems.length) { skipped.push(`строка ${line}: ${problems.join(", ")}`); return; }
+    const cat = String(row["категория"] || "").toLowerCase();
+    events.push({
+      id: String(row["id"] || `row-${line}`),
+      title: row["название"],
+      category: CATEGORIES[cat] && cat !== "другое" ? cat : "другое",
+      start: start <= end ? start : end,
+      end: start <= end ? end : start,
+      time: row["время"],
+      address: row["адрес"],
+      lat, lon,
+      description: row["описание"],
+      route: row["как_добраться"],
+      photos: String(row["фото"] || "").split(/[;,]/).map(s => s.trim()).filter(Boolean),
+      link: row["ссылка"]
+    });
+  });
+  return { events, skipped };
+}
+
+const inDates = e => e.end >= today() && (!state.to || e.start <= state.to) && e.end >= state.from;
+const isVisible = e => inDates(e) && !state.off.has(e.category);
+
+function photoUrl(name) { return PHOTO_DIR + encodeURIComponent(name); }
+function imgTag(e, cls = "") {
+  return e.photos.length
+    ? `<img class="${cls}" src="${photoUrl(e.photos[0])}" alt="" onerror="this.style.visibility='hidden'">`
+    : `<div class="noimg ${cls}"></div>`;
+}
+
+function tooltipHtml(e) {
+  const c = CATEGORIES[e.category];
+  return `<div>${e.photos.length ? `<img src="${photoUrl(e.photos[0])}" alt="" onerror="this.remove()">` : ""}
+    <div class="tip-body">
+      <div class="meta" style="--c:${c.color}"><i class="dot"></i>${esc(e.category)} · ${esc(fmtRange(e))}${e.time ? " · " + esc(e.time) : ""}</div>
+      <h4>${esc(e.title)}</h4>
+      ${e.route ? `<div class="route"><span>Как добраться</span>${esc(e.route)}</div>` : ""}
+    </div></div>`;
+}
+
+let map, popup;
+
+async function buildStyle() {
+  const base = new URL(".", location.href).href;
+  const style = {
+    version: 8,
+    glyphs: base + "lib/assets/fonts/{fontstack}/{range}.pbf",
+    sprite: base + "lib/assets/sprites/v4/light",
+    sources: {},
+    layers: [{ id: "bg", type: "background", paint: { "background-color": "#e9eef2" } }]
+  };
+  const head = await fetch("map/saratov.pmtiles", { method: "HEAD" }).catch(() => null);
+  if (!head || !head.ok) {
+    $("notice").textContent = "Нет файла карты site/map/saratov.pmtiles — запустите download.bat. События показаны без подложки.";
+    return style;
+  }
+  style.sources.protomaps = {
+    type: "vector",
+    url: "pmtiles://" + base + "map/saratov.pmtiles",
+    attribution: '© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> · <a href="https://protomaps.com">Protomaps</a>'
+  };
+  const layers = basemaps.layers("protomaps", basemaps.namedFlavor("light"), { lang: "ru" });
+  const firstSymbol = layers.findIndex(l => l.type === "symbol");
+  layers.splice(firstSymbol < 0 ? layers.length : firstSymbol, 0, {
+    id: "buildings-3d",
+    type: "fill-extrusion",
+    source: "protomaps",
+    "source-layer": "buildings",
+    minzoom: 14,
+    paint: {
+      "fill-extrusion-color": "#dfe3e8",
+      "fill-extrusion-height": ["coalesce", ["get", "height"], 9],
+      "fill-extrusion-base": ["coalesce", ["get", "min_height"], 0],
+      "fill-extrusion-opacity": 0.85
+    }
+  });
+  style.layers = layers;
+  return style;
+}
+
+async function initMap() {
+  maplibregl.addProtocol("pmtiles", new pmtiles.Protocol().tile);
+  map = new maplibregl.Map({
+    container: "map",
+    style: await buildStyle(),
+    center: CENTER,
+    zoom: 13,
+    pitch: 45,
+    bearing: -12,
+    minZoom: 10,
+    maxZoom: 18.5,
+    maxBounds: [[BOUNDS[0][0] - 0.05, BOUNDS[0][1] - 0.03], [BOUNDS[1][0] + 0.05, BOUNDS[1][1] + 0.03]],
+    attributionControl: { compact: true }
+  });
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+  map.on("click", closePanel);
+  popup = new maplibregl.Popup({ closeButton: false, closeOnClick: false, offset: [0, -34], className: "tip", maxWidth: "280px" });
+}
+
+function markerElement(e) {
+  const el = document.createElement("div");
+  el.className = "pin";
+  el.innerHTML = `<span style="--c:${CATEGORIES[e.category].color}"></span>`;
+  return el;
+}
+
+function setActive(id, on) {
+  const m = state.markers.get(id);
+  if (m) {
+    m.getElement().classList.toggle("active", on);
+    if (hoverCapable) {
+      if (on) popup.setLngLat(m.getLngLat()).setHTML(tooltipHtml(m.event)).addTo(map);
+      else popup.remove();
+    }
+  }
+  document.querySelector(`.item[data-id="${CSS.escape(id)}"]`)?.classList.toggle("active", on);
+}
+
+function renderChips() {
+  const counts = {};
+  state.events.filter(inDates).forEach(e => counts[e.category] = (counts[e.category] || 0) + 1);
+  const used = Object.keys(CATEGORIES).filter(k => k !== "другое" || counts[k]);
+  $("chips").innerHTML = used.map(k => `<span class="chip${state.off.has(k) ? " off" : ""}" data-cat="${k}" style="--c:${CATEGORIES[k].color}"><i></i>${CATEGORIES[k].title}<b>${counts[k] || 0}</b></span>`).join("");
+}
+
+function renderList(visible, skipped) {
+  const head = `<div class="list-head"><strong>${visible.length ? `Событий: ${visible.length}` : "Нет событий"}</strong>${state.to ? `${esc(fmtDate(state.from))} — ${esc(fmtDate(state.to))}` : `с ${esc(fmtDate(state.from))}, все даты`}</div>`;
+  const warn = skipped && skipped.length ? `<div class="warn" title="${esc(skipped.join("\n"))}">Пропущено строк в Excel: ${skipped.length} (наведите, чтобы увидеть причины)</div>` : "";
+  const body = visible.length
+    ? visible.map(e => `<div class="item" data-id="${esc(e.id)}">${imgTag(e)}<div><h3>${esc(e.title)}</h3><div class="meta" style="--c:${CATEGORIES[e.category].color}"><i class="dot"></i>${esc(fmtRange(e))}${e.time ? " · " + esc(e.time) : ""}</div></div></div>`).join("")
+    : `<div class="empty">На выбранные даты событий нет.<br>Попробуйте расширить даты поездки или включить другие категории.</div>`;
+  $("list").innerHTML = head + warn + body;
+}
+
+let skippedRows = [];
+function render(fit) {
+  const visible = state.events.filter(isVisible).sort((a, b) => a.start.localeCompare(b.start) || a.title.localeCompare(b.title));
+  state.markers.forEach(m => m.remove());
+  state.markers.clear();
+  popup.remove();
+  visible.forEach(e => {
+    const el = markerElement(e);
+    const m = new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat([e.lon, e.lat]).addTo(map);
+    m.event = e;
+    el.addEventListener("click", ev => { ev.stopPropagation(); openPanel(e); });
+    el.addEventListener("mouseenter", () => setActive(e.id, true));
+    el.addEventListener("mouseleave", () => setActive(e.id, false));
+    state.markers.set(e.id, m);
+  });
+  renderChips();
+  renderList(visible, skippedRows);
+  if (fit && visible.length) {
+    const b = new maplibregl.LngLatBounds();
+    visible.forEach(e => b.extend([e.lon, e.lat]));
+    map.fitBounds(b, { padding: 80, maxZoom: 14.5, pitch: 45, duration: 800 });
+  }
+  if (state.current && !visible.includes(state.current)) closePanel();
+}
+
+function openPanel(e) {
+  state.current = e;
+  const c = CATEGORIES[e.category];
+  const routeUrl = `https://yandex.ru/maps/?rtext=~${e.lat},${e.lon}&rtt=mt`;
+  const gallery = e.photos.length
+    ? `<img class="gallery-main" id="gmain" src="${photoUrl(e.photos[0])}" alt="">${e.photos.length > 1 ? `<div class="thumbs">${e.photos.map((p, i) => `<img src="${photoUrl(p)}" data-src="${photoUrl(p)}" class="${i ? "" : "sel"}" alt="">`).join("")}</div>` : ""}`
+    : "";
+  $("panel").innerHTML = `<button class="close" aria-label="Закрыть">×</button>${gallery}
+    <div class="panel-body">
+      <div class="meta" style="--c:${c.color}"><i class="dot"></i>${esc(e.category)}</div>
+      <h2>${esc(e.title)}</h2>
+      <div class="facts">
+        <span>📅</span><span>${esc(fmtRange(e))}</span>
+        ${e.time ? `<span>🕒</span><span>${esc(e.time)}</span>` : ""}
+        ${e.address ? `<span>📍</span><span>${esc(e.address)}</span>` : ""}
+      </div>
+      ${e.description ? `<p class="desc">${esc(e.description)}</p>` : ""}
+      ${e.route ? `<div class="route"><span>Как добраться</span>${esc(e.route)}</div>` : ""}
+      <div class="actions">
+        <a class="btn primary" href="${routeUrl}" target="_blank" rel="noopener">Маршрут в Яндекс Картах</a>
+        ${e.link ? `<a class="btn" href="${esc(e.link)}" target="_blank" rel="noopener">Сайт события</a>` : ""}
+      </div>
+      <div class="hint">Маршрут открывается при подключении к интернету.</div>
+    </div>`;
+  $("panel").classList.add("open");
+  $("panel").querySelector(".close").onclick = closePanel;
+  $("panel").querySelectorAll(".thumbs img").forEach(t => t.onclick = () => {
+    $("gmain").src = t.dataset.src;
+    $("panel").querySelectorAll(".thumbs img").forEach(x => x.classList.toggle("sel", x === t));
+  });
+  map.easeTo({ center: [e.lon, e.lat], padding: { right: window.innerWidth > 800 ? 400 : 0 }, duration: 600 });
+}
+
+function closePanel() {
+  state.current = null;
+  $("panel").classList.remove("open");
+}
+
+function setDates(from, to, fit = true) {
+  const t = today();
+  from = from < t ? t : from;
+  to = to ? (to < from ? from : to) : null;
+  state.from = from;
+  state.to = to;
+  $("from").value = from;
+  $("to").value = to || "";
+  $("to").min = from;
+  render(fit);
+}
+
+function nextWeekend() {
+  const day = new Date().getDay();
+  if (day === 0) return [today(), today()];
+  const sat = addDays(today(), 6 - day);
+  return [sat, addDays(sat, 1)];
+}
+
+function bindUi() {
+  $("from").min = today();
+  $("from").onchange = () => {
+    const v = $("from").value || today();
+    setDates(v, state.to && state.to < v ? addDays(v, 6) : state.to);
+  };
+  $("to").onchange = () => setDates(state.from, $("to").value || null);
+  $("week").onclick = () => setDates(today(), addDays(today(), 6));
+  $("weekend").onclick = () => setDates(...nextWeekend());
+  $("all").onclick = () => setDates(state.from, null);
+  $("chips").onclick = ev => {
+    const chip = ev.target.closest(".chip");
+    if (!chip) return;
+    const k = chip.dataset.cat;
+    state.off.has(k) ? state.off.delete(k) : state.off.add(k);
+    render(true);
+  };
+  $("list").addEventListener("click", ev => {
+    const item = ev.target.closest(".item");
+    if (!item) return;
+    const e = state.events.find(x => x.id === item.dataset.id);
+    if (e) { openPanel(e); map.flyTo({ center: [e.lon, e.lat], zoom: Math.max(map.getZoom(), 16), pitch: 55, padding: { right: window.innerWidth > 800 ? 400 : 0 } }); }
+  });
+  $("list").addEventListener("mouseover", ev => {
+    const item = ev.target.closest(".item");
+    if (item && !item.contains(ev.relatedTarget)) setActive(item.dataset.id, true);
+  });
+  $("list").addEventListener("mouseout", ev => {
+    const item = ev.target.closest(".item");
+    if (item && !item.contains(ev.relatedTarget)) setActive(item.dataset.id, false);
+  });
+  document.addEventListener("keydown", ev => ev.key === "Escape" && closePanel());
+}
+
+async function main() {
+  if (location.protocol === "file:") {
+    fatal("Карту нужно открывать через <b>start.bat</b> в корне папки КАРТА.<br>Двойной клик по index.html не работает: браузер не даёт читать файлы с диска.");
+    return;
+  }
+  const missing = [["maplibregl", "maplibre-gl.js"], ["pmtiles", "pmtiles.js"], ["basemaps", "basemaps.js"], ["XLSX", "xlsx.full.min.js"]].filter(([g]) => !window[g]).map(([, f]) => f);
+  if (missing.length) {
+    fatal(`Не хватает библиотек в site/lib: <b>${missing.join(", ")}</b>.<br>Запустите download.bat на компьютере с интернетом.`);
+    return;
+  }
+  await initMap();
+  try {
+    const { events, skipped } = await loadEvents();
+    state.events = events;
+    skippedRows = skipped;
+    if (skipped.length) console.warn("Пропущены строки Excel:", skipped);
+  } catch (err) {
+    fatal(esc(err.message));
+    return;
+  }
+  bindUi();
+  const t = today();
+  const upcoming = state.events.filter(e => e.end >= t).sort((a, b) => a.start.localeCompare(b.start));
+  const start = upcoming.length && !upcoming.some(e => e.start <= addDays(t, 6)) ? upcoming[0].start : t;
+  setDates(start, addDays(start, 6));
+}
+
+main();
+</script>
+</body>
+</html>
